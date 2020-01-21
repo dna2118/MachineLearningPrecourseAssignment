@@ -1,0 +1,138 @@
+---
+title: "Precourse Assignment"
+author: "Dionna Attinson"
+date: "1/20/2020"
+output: html_document
+---
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(fBasics)
+library(data.table)
+library(ggplot2)
+library(plotly)
+library(patchwork)
+library(viridis)
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+theme_set(theme_bw() + theme(legend.position = "right"))
+theme_set(theme_minimal() + theme(legend.position = "right"))
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  fig.width = 6,
+  fig.asp = .6,
+	echo = TRUE,
+	warning = FALSE,
+	fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%")
+```
+
+#### First, we will read in the dataset and name it `Data`
+```{r}
+Data = read_csv("./dataR2.csv")
+```
+#### Next, we will create a summary output of the dataset. 
+```{r}
+basicStats(Data)[c("Mean", "Stdev", "Median", "Minimum", "Maximum"),] %>% 
+  knitr::kable(digits = 1)
+```
+
+#### Now, we will recode BMI into the WHO-defined categories below 
+* +Severely underweight - BMI less than 16.5kg/m^2 
+* +Underweight - BMI under 18.5 kg/m^2 
+* +Normal weight - BMI greater than or equal to 18.5 to 24.9 kg/m^2 
+* +Overweight – BMI greater than or equal to 25 to 29.9 kg/m^2 
+* +Obesity class I – BMI 30 to 34.9 kg/m^2 
+* +Obesity class II – BMI 35 to 39.9 kg/m^2 
+* +Obesity class III – BMI greater than or equal to 40 kg/m^2
+
+```{r}
+Data = 
+  Data %>% 
+  mutate(
+    BMI_Category = BMI,
+    BMI_Category = as.numeric(BMI_Category),
+    Classification = as.character(Classification))
+```
+
+```{r}
+Data = 
+ Data %>% 
+ mutate(BMI_Category = 
+          case_when(BMI_Category >= 40 ~ 'Obesity Class III',
+                    BMI_Category >= 35  & BMI_Category <= 39.9 ~ 'Obesity Class II',
+                    BMI_Category >= 30  & BMI_Category <= 34.9 ~ 'Obesity Class I',
+                    BMI_Category >= 25  & BMI_Category <= 29.9 ~ 'Overweight',
+                    BMI_Category >= 18.5  & BMI_Category <= 24.9  ~ 'Normal Weight',
+                    BMI_Category >= 16.5 & BMI_Category <= 18.4 ~ 'Underweight',
+                    BMI_Category <= 16.4 ~ "Severely Underweight"))
+```
+### Now we will Create a bar chart showing the proportion of breast cancer cases and controls within each BMI category
+```{r}
+PlotData = 
+Data %>% 
+    mutate(Classification = 
+             recode(Classification,
+                    "1" = "Controls",
+                    "2" = "Cases"))
+```
+
+```{r}
+plot2 = 
+ PlotData %>% 
+ ggplot(aes(x=BMI_Category, fill=Classification)) +
+ geom_bar() 
+
+ggplotly(plot2)
+```
+
+### Now we will create a logistic and linear regression model 
+* Construct a logistic regression model using breast cancer classification as the outcome and glucose, HOMA, leptin, BMI (continuous) and age as the independent variables. 
+* Fill in the beta estimate and 95% confidence interval associated with a 1-unit change in HOMA5.
+* Construct a linear regression model using insulin as the outcome and BMI (continuous), age, and glucose as the independent variables. 
+* Fill in the beta estimate and 95% confidence interval associated with a 1-unit change in age.
+```{r}
+Data_Regression = 
+  Data %>% 
+  mutate(
+    Classification = recode(Classification, 
+              "1" = "0", 
+              "1" = "0",
+              "2" = "1",
+              "2" = "1"),
+    Classification = as.numeric(Classification))
+```
+
+```{r}
+model1 = 
+  Data_Regression %>% 
+  glm(Classification ~ Glucose + HOMA + Leptin + BMI + Age, data = ., family =  binomial())
+ 
+model1 %>% 
+  broom::tidy() %>% 
+  mutate(OR = exp(estimate),
+         High_CI = exp(estimate + 1.96*std.error),
+         Low_CI = exp(estimate - 1.96*std.error)) %>% 
+  select(term, log_OR = estimate, OR, p.value, Low_CI, High_CI) %>% 
+  knitr::kable(digits = 3)
+```
+
+```{r}
+model2 = 
+  Data_Regression %>% 
+  lm(Insulin ~ BMI + Age + Glucose, data = .,)
+
+model2 %>% 
+  broom::tidy() %>% 
+  mutate(OR = exp(estimate),
+         High_CI = exp(estimate + 1.96*std.error),
+         Low_CI = exp(estimate - 1.96*std.error)) %>% 
+  select(term, log_OR = estimate, OR, p.value, Low_CI, High_CI) %>% 
+  knitr::kable(digits = 3)
+```
+
